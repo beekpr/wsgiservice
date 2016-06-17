@@ -450,7 +450,7 @@ class Resource(object):
 
         # Raise consolidated exceptions. The message of the first error is used
         # as message of the new consolidated exception.
-        raise MultiValidationException(errors, str(errors.values()[0]))
+        raise MultiValidationException(errors, unicode(errors.values()[0]).encode('utf-8'))
 
     def validate_param(self, method, param, value):
         """Validates the parameter according to the configurations in the
@@ -576,7 +576,7 @@ class Resource(object):
         """
         logger.exception(
             "An exception occurred while handling the request: %s", e)
-        self.response.body_raw = {'error': str(e)}
+        self.response.body_raw = {'error': unicode(e).encode('utf-8')}
         self.response.status = status
 
     def handle_exception_400(self, e):
@@ -589,11 +589,13 @@ class Resource(object):
         """
         if isinstance(e, MultiValidationException):
             errors = dict([
-                (param, str(exc)) for param, exc in e.errors.iteritems()
+                (param, unicode(exc).encode('utf-8')) for param, exc in e.errors.iteritems()
             ])
-            logger.exception("A 400 Bad Request exception occurred while "
-                             " handling the request: %r", errors)
-            first_error = str(e.errors.values()[0])
+            logger.info("A 400 Bad Request exception occurred while "
+                        "handling the request",
+                        exc_info=True,
+                        extra={'errors': errors, 'e': e})
+            first_error = unicode(e.errors.values()[0]).encode('utf-8')
             self.response.body_raw = {'errors': errors, 'error': first_error}
             self.response.status = 400
         else:
