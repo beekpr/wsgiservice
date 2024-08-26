@@ -4,6 +4,8 @@ returned as XML.
 """
 import re
 from xml.sax.saxutils import escape as xml_escape
+import six
+from six import unichr
 
 # Regular expression matching all the illegal XML characters.
 RE_ILLEGAL_XML = re.compile(
@@ -45,20 +47,22 @@ def _get_xml_value(value):
     """
     retval = []
     if isinstance(value, dict):
-        for key, value in value.iteritems():
-            retval.append('<' + xml_escape(str(key)) + '>')
+        for key, value in six.iteritems(value):
+            retval.append('<' + xml_escape(six.text_type(key)) + '>')
             retval.append(_get_xml_value(value))
-            retval.append('</' + xml_escape(str(key)) + '>')
+            retval.append('</' + xml_escape(six.text_type(key)) + '>')
     elif isinstance(value, list):
         for key, value in enumerate(value):
-            retval.append('<child order="' + xml_escape(str(key)) + '">')
+            retval.append('<child order="' + xml_escape(six.text_type(key)) + '">')
             retval.append(_get_xml_value(value))
             retval.append('</child>')
     elif isinstance(value, bool):
-        retval.append(xml_escape(str(value).lower()))
-    elif isinstance(value, unicode):
+        retval.append(xml_escape(six.text_type(value).lower()))
+    elif isinstance(value, six.binary_type):
         retval.append(xml_escape(value.encode('utf-8')))
+    elif isinstance(value, six.text_type):
+        retval.append(xml_escape(value))
     else:
-        retval.append(xml_escape(str(value)))
+        retval.append(xml_escape(six.text_type(value)))
     return "".join(retval)
 

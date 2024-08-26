@@ -99,7 +99,7 @@ class Application(object):
             path_params=path_params, application=self)
         response = instance()
         if request.method == 'HEAD':
-            response.body = ''
+            response.body = b''
         return response
 
 
