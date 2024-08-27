@@ -11,6 +11,8 @@ from wsgiservice.decorators import mount
 from wsgiservice.exceptions import (MultiValidationException, ResponseException,
                                     ValidationException)
 from wsgiservice.status import *
+import six
+from six.moves import zip
 
 logger = logging.getLogger(__name__)
 
@@ -138,17 +140,17 @@ class Resource(object):
             self.handle_ignored_resources()
             self.assert_conditions()
             self.response.body_raw = self.call_method(self.method)
-        except ResponseException, e:
+        except ResponseException as e:
             # a response was raised, catch it
             self.response = e.response
             r = e.response
             if r.status_int == 404 and not r.body and not hasattr(r, 'body_raw'):
                 self.handle_exception_404(e)
-        except self.NOT_FOUND, e:
+        except self.NOT_FOUND as e:
             self.handle_exception_404(e)
-        except ValidationException, e:
+        except ValidationException as e:
             self.handle_exception_400(e)
-        except Exception, e:
+        except Exception as e:
             self.handle_exception(e)
         self.convert_response()
         self.set_response_headers()
@@ -168,7 +170,7 @@ class Resource(object):
         retval = {}
         data = self.get_request_data()
         for subdata in data:
-            for key, value in subdata.iteritems():
+            for key, value in six.iteritems(subdata):
                 if not key in retval:
                     retval[key] = value
 
@@ -398,13 +400,23 @@ class Resource(object):
         params = []
         method = getattr(self, method_name)
 
-        method_params, varargs, varkw, defaults = inspect.getargspec(method)
+        method, argspec = self._get_argspec(method)
+        method_params = argspec.args
         if method_params and len(method_params) > 1:
             method_params.pop(0)  # pop the self off
-            data = self._merge_defaults(self.data, method_params, defaults)
+            data = self._merge_defaults(self.data, method_params, argspec.defaults)
             params = self._get_validated_params(method, method_params, data)
 
         return self._call_method(method, params, method_params)
+
+    def _get_argspec(self, method):
+        """Return method arguments for the given method.
+        """
+        if six.PY2:
+            argspec = inspect.getargspec(method)
+        else:
+            argspec = inspect.getfullargspec(method)
+        return method, argspec
 
     def _call_method(self, method, params, method_params):
         """
@@ -438,7 +450,7 @@ class Resource(object):
             try:
                 self.validate_param(method, param, value)
                 value = self.convert_param(method, param, value)
-            except ValidationException, e:
+            except ValidationException as e:
                 # Collect all errors, so we can raise them as one consolidated
                 # validation exception.
                 errors[param] = e
@@ -450,7 +462,7 @@ class Resource(object):
 
         # Raise consolidated exceptions. The message of the first error is used
         # as message of the new consolidated exception.
-        raise MultiValidationException(errors, unicode(errors.values()[0]).encode('utf-8'))
+        raise MultiValidationException(errors, six.text_type(list(errors.values())[0]).encode('utf-8'))
 
     def validate_param(self, method, param, value):
         """Validates the parameter according to the configurations in the
@@ -476,7 +488,7 @@ class Resource(object):
             return
         if rules.get('mandatory') and (
                 value is None or
-                (isinstance(value, basestring) and len(value) == 0)):
+                (isinstance(value, six.string_types) and len(value) == 0)):
             raise ValidationException("Missing value for {0}.".format(param))
         elif rules.get('re') and (rules.get('mandatory') or value is not None):
             if not re.search('^' + rules['re'] + '$', value):
@@ -520,9 +532,9 @@ class Resource(object):
         """
         if hasattr(method, '_validations') and param in method._validations:
             return method._validations[param]
-        elif (hasattr(method.im_class, '_validations') and
-                param in method.im_class._validations):
-            return method.im_class._validations[param]
+        elif (hasattr(method.__self__.__class__, '_validations') and
+                param in method.__self__.__class__._validations):
+            return method.__self__.__class__._validations[param]
         else:
             return None
 
@@ -536,8 +548,11 @@ class Resource(object):
                 to_type = re.sub('[^a-zA-Z_]', '_', self.type)
                 to_type_method = 'to_' + to_type
                 if hasattr(self, to_type_method):
-                    self.response.body = getattr(self, to_type_method)(
-                        self.response.body_raw)
+                    body = getattr(self, to_type_method)(self.response.body_raw)
+                    if not isinstance(body, bytes):
+                        body = body.encode(self.charset)
+                    self.response.body = body
+
             del self.response.body_raw
 
     def to_application_json(self, raw):
@@ -576,7 +591,7 @@ class Resource(object):
         """
         logger.exception(
             "An exception occurred while handling the request: %s", e)
-        self.response.body_raw = {'error': unicode(e).encode('utf-8')}
+        self.response.body_raw = {'error': six.text_type(e)}
         self.response.status = status
 
     def handle_exception_400(self, e):
@@ -589,13 +604,13 @@ class Resource(object):
         """
         if isinstance(e, MultiValidationException):
             errors = dict([
-                (param, unicode(exc).encode('utf-8')) for param, exc in e.errors.iteritems()
+                (param, six.text_type(exc)) for param, exc in six.iteritems(e.errors)
             ])
             logger.info("A 400 Bad Request exception occurred while "
                         "handling the request",
                         exc_info=True,
                         extra={'errors': errors, 'e': e})
-            first_error = unicode(e.errors.values()[0]).encode('utf-8')
+            first_error = six.text_type(list(e.errors.values())[0])
             self.response.body_raw = {'errors': errors, 'error': first_error}
             self.response.status = 400
         else:
@@ -1219,7 +1234,7 @@ class Help(Resource):
             retval.append('<tr><th>Path</th><td>{0}</td>'.format(xml_escape(
                 resource['path'])))
             representations = [value + ' (.' + key + ')' for key, value
-                in resource['properties']['EXTENSION_MAP'].iteritems()]
+                in six.iteritems(resource['properties']['EXTENSION_MAP'])]
             retval.append('<tr><th>Representations</th><td>{0}</td>'.format(
                 xml_escape(', '.join(representations))))
             retval.append('</table>')
@@ -1235,7 +1250,7 @@ class Help(Resource):
         :param resource: The documentation of one resource.
         :type resource: Dictionary
         """
-        for method_name, method in resource['methods'].iteritems():
+        for method_name, method in six.iteritems(resource['methods']):
             retval.append('<h3 id="{0}_{1}">{1}</h3>'.format(
                 xml_escape(resource['name']), xml_escape(method_name)))
             retval.append('<div class="method_details" id="{0}_{1}_container">'.format(
@@ -1245,7 +1260,7 @@ class Help(Resource):
             if method['parameters']:
                 retval.append('<table class="parameters">')
                 retval.append('<tr><th>Name</th><th>Mandatory</th><th>Description</th><th>Validation</th>')
-                for param_name, param in method['parameters'].iteritems():
+                for param_name, param in six.iteritems(method['parameters']):
                     # filter out any parameters that can't be written as html.
                     # can contain stuff in other encodings than ascii,
                     # so convert it to ascii

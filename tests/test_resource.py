@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function
 import json
+
+import six
 
 import webob
 import wsgiservice
@@ -24,7 +27,7 @@ def test_validate_resource():
     class User(wsgiservice.Resource):
         pass
 
-    print User._validations
+    print(User._validations)
     assert User.__name__ == 'User'
     assert User._validations['id'] == {
         're': r'[-0-9a-zA-Z]{36}',
@@ -44,7 +47,7 @@ def test_validate_method():
         def PUT(self, password):
             pass
 
-    print User.PUT._validations
+    print(User.PUT._validations)
     assert User.PUT.__name__ == 'PUT'
     assert User.PUT._validations['password'] == {'re': None,
         'convert': None, 'doc': "User's password", 'mandatory': True}
@@ -65,9 +68,9 @@ def test_default_value():
     res = webob.Response()
     usr = User(request=req, response=res, path_params={})
     res = usr()
-    print res
+    print(res)
     obj = json.loads(res.body)
-    print obj
+    print(obj)
     assert obj == {'id': 5, 'foo': 'baz1', 'bar': 'baz2'}
 
 
@@ -84,9 +87,9 @@ def test_default_value_overwrite():
     res = webob.Response()
     usr = User(request=req, response=res, path_params={})
     res = usr()
-    print res
+    print(res)
     obj = json.loads(res.body)
-    print obj
+    print(obj)
     assert obj == {'id': '8', 'foo': 'bar'}
 
 
@@ -104,9 +107,9 @@ def test_default_value_validate_novalue():
     res = webob.Response()
     usr = User(request=req, response=res, path_params={})
     res = usr()
-    print res
+    print(res)
     obj = json.loads(res.body)
-    print obj
+    print(obj)
     assert obj == {'id': 5, 'foo': 'bar'}
 
 
@@ -124,10 +127,10 @@ def test_default_value_validate():
     res = webob.Response()
     usr = User(request=req, response=res, path_params={})
     res = usr()
-    print res
+    print(res)
     assert res.status_int == 400
     obj = json.loads(res.body)
-    print obj
+    print(obj)
     assert obj["errors"] == {"id": "Missing value for id."}
     assert obj["error"] == "Missing value for id."
 
@@ -147,13 +150,18 @@ def test_convert_params():
     res = webob.Response()
     usr = User(request=req, response=res, path_params={})
     res = usr()
-    print res
+    print(res)
     assert res.status_int == 200
     obj = json.loads(res.body)
-    assert obj['foo'] is 193
-    assert obj['foo_type'] == "<type 'int'>"
-    assert obj['bar'] == "u'testing'"
-    assert obj['bar_type'] == "<type 'str'>"
+    assert obj['foo'] == 193
+    if six.PY2:
+        assert obj['bar'] == "u'testing'"
+        assert obj['foo_type'] == "<type 'int'>"
+        assert obj['bar_type'] == "<type 'str'>"
+    else:
+        assert obj['bar'] == "'testing'"
+        assert obj['foo_type'] == "<class 'int'>"
+        assert obj['bar_type'] == "<class 'str'>"
 
 
 def test_validate_multiple():
@@ -173,7 +181,7 @@ def test_validate_multiple():
     response = webob.Response()
     resource = User(request=req, response=response, path_params={})
     response = resource()
-    print response
+    print(response)
     assert response.status_int == 400
     obj = json.loads(response.body)
     assert obj['errors']
@@ -196,9 +204,9 @@ def test_validate_regex_or_none():
     res = webob.Response()
     usr = User(request=req, response=res, path_params={})
     res = usr()
-    print res
+    print(res)
     obj = json.loads(res.body)
-    print obj
+    print(obj)
     assert obj == {'age': None}
 
 
@@ -216,9 +224,9 @@ def test_validate_convert_none_default():
     res = webob.Response()
     usr = User(request=req, response=res, path_params={})
     res = usr()
-    print res
+    print(res)
     obj = json.loads(res.body)
-    print obj
+    print(obj)
     assert obj == {'age': None}
 
 
@@ -240,10 +248,13 @@ def test_latin1_submit():
     res = webob.Response()
     usr = User(request=req, response=res, path_params={})
     res = usr()
-    print res
+    print(res)
     assert res.status_int == 200
     obj = json.loads(res.body)
-    assert obj == {'body': "'F\\xfchler'"}
+    if six.PY2:
+        assert obj == {'body': "'F\\xfchler'"}
+    else:
+        assert obj == {'body': "b'F\\xfchler'"}
 
 
 def test_convert_params_validate():
@@ -258,7 +269,7 @@ def test_convert_params_validate():
     res = webob.Response()
     usr = User(request=req, response=res, path_params={})
     res = usr()
-    print res
+    print(res)
     assert res.status_int == 400
     obj = json.loads(res.body)
     assert obj["errors"] == {"a": "Invalid value for a."}
@@ -278,7 +289,7 @@ def test_ignore_robotstxt():
     res = webob.Response()
     usr = Dummy(request=req, response=res, path_params={})
     res = usr()
-    print res
+    print(res)
     assert res.status_int == 404
 
 
@@ -295,7 +306,7 @@ def test_ignore_favicon():
     res = webob.Response()
     usr = Dummy(request=req, response=res, path_params={})
     res = usr()
-    print res
+    print(res)
     assert res.status_int == 404
 
 
@@ -313,7 +324,7 @@ def test_ignore_favicon_overwrite():
     res = webob.Response()
     usr = Dummy(request=req, response=res, path_params={})
     res = usr()
-    print res
+    print(res)
     assert res.status_int == 200
 
 
@@ -330,7 +341,7 @@ def test_ignore_favicon_not_root():
     res = webob.Response()
     usr = Dummy(request=req, response=res, path_params={})
     res = usr()
-    print res
+    print(res)
     assert res.status_int == 200
 
 
@@ -347,7 +358,7 @@ def test_ignore_favicon_query_param():
     res = webob.Response()
     usr = Dummy(request=req, response=res, path_params={})
     res = usr()
-    print res
+    print(res)
     assert res.status_int == 200
 
 
@@ -364,7 +375,7 @@ def test_ignore_favicon_post():
     res = webob.Response()
     usr = Dummy(request=req, response=res, path_params={})
     res = usr()
-    print res
+    print(res)
     assert res.status_int == 200
 
 
@@ -388,7 +399,7 @@ def test_default_mimetype():
     res = webob.Response()
     usr = Dummy(request=req, response=res, path_params={})
     res = usr()
-    print res
+    print(res)
     assert res.headers['Content-Type'] == 'text/plain; charset=UTF-8'
 
 
@@ -406,7 +417,7 @@ def test_invalid_accept():
     res = webob.Response()
     usr = Dummy(request=req, response=res, path_params={})
     res = usr()
-    print res
+    print(res)
     assert res.headers['Content-Type'] == 'text/xml; charset=UTF-8'
 
 
@@ -422,5 +433,5 @@ def test_raise_404():
     res = webob.Response()
     usr = Dummy(request=req, response=res, path_params={})
     res = usr()
-    print res
+    print(res)
     assert res.headers['Content-Type'] == 'text/xml; charset=UTF-8'

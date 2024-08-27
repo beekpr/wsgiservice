@@ -14,10 +14,11 @@ setup(
     install_requires=[
         'decorator',
         'webob >= 1.2b2',
+        'six >= 1.13.0',
     ],
     tests_require=[
         'nose',
-        'mox',
+        'mox3',
     ],
     test_suite='nose.collector',
     license='BSD',
